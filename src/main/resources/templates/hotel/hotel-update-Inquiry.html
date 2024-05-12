@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <style>
+        /* 기존의 CSS 스타일 */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            padding: 20px;
+            max-width: 600px;
+            margin: 40px auto;
+        }
+        h5 {
+            color: #333;
+            font-size: 24px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 16px;
+            color: #555;
+        }
+        .form-control {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            margin-bottom: 16px;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        .border-bottom {
+            border-bottom: 2px solid #eee;
+        }
+        .pb-2 {
+            padding-bottom: 10px;
+        }
+        .mb-3 {
+            margin-bottom: 16px;
+        }
+        .my-2 {
+            margin-top: 8px;
+            margin-bottom: 8px;
+        }
+        .my-3 {
+            margin-top: 12px;
+            margin-bottom: 12px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h5 class="my-3 border-bottom pb-2">질문 수정</h5>
+    <input type="hidden" id="urlId">
+    <div class="mb-3">
+        <label for="title" class="form-label">제목</label>
+        <input type="text" name="title" id="title" class="form-control">
+    </div>
+    <div class="mb-3">
+        <label for="content" class="form-label">내용</label>
+        <textarea name="content" id="content" class="form-control" rows="10"></textarea>
+    </div>
+    <button type="button" onclick="submitInquiry()" class="btn btn-primary my-2">저장하기</button>
+
+
+</div>
+<script>
+    let data = {};
+
+    async function fetchUpdate() {
+        const url = new URL(window.location.href);
+        console.log(url);
+        const segments = url.pathname.split('/');
+        const index = segments.indexOf('update');
+        const urlId = (index !== -1 && index + 1 < segments.length) ? segments[index + 1] : null;
+        console.log('Extracted ID:', urlId);  // 추출된 ID를 로그로 확인
+
+        const response = await fetch(`/api/hotel/inquiries/update/${urlId}`);
+        if (response.ok) {
+            const inquiry = await response.json();
+            document.getElementById('urlId').value = urlId;
+            document.getElementById('title').value = inquiry.title;
+            document.getElementById('content').innerText = inquiry.content;
+        }
+    }
+
+
+    async function submitInquiry() {
+        data.id = document.getElementById('urlId').value; // 'id' 필드를 data에 추가
+        data.title = document.getElementById('title').value;
+        data.content = document.getElementById('content').value;
+
+        const response = await fetch(`/api/hotel/inquiries/update`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            alert('정상적으로 등록되었습니다.');
+            window.opener.location.reload();  // 원래 있던 창 새로고침
+            window.close();  // 현재 창 닫기
+        } else {
+            alert('등록에 실패하였습니다.');
+        }
+    }
+
+    function initialize() {
+        fetchUpdate();
+    }
+
+    initialize();
+</script>
+</body>
+</html>

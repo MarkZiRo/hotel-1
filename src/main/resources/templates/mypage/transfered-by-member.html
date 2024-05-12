@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <!-- toss-client-key를 타임리프로 암호화로 가져옴 -->
+    <meta name="toss-client-key" th:content="${clientKey}"/>
+    <title> 양도 결제 페이지</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <!-- 토스 페이먼츠 부르기 위한 widget 경로  -->
+    <script src="https://js.tosspayments.com/v1/payment-widget"></script>
+</head>
+<body>
+<div class="container">
+    <div class="row">
+        <div class="col-lg-6 p-3">
+            <div id="payment-wrapper">
+                <div id="payment-method"></div>
+                <div id="agreement"></div>
+                <div class="p-3 w-100">
+                    <button id="payment-request-button" class="btn btn-primary w-100">결제하기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+<script>
+    // url에서 params 정보들 받아와야함 [1] B의 reservationId, [2]orderName(방이름)
+    const urlParams = new URLSearchParams(window.location.search);
+    const reservationId = urlParams.get('reservationId');
+    const roomName = urlParams.get('orderName');
+    const roomId = urlParams.get('roomId');
+
+    // const clientKey = "test_ck_Gv6LjeKD8aX1eR5boGBBrwYxAdXy"; // 이것도 보안 설정하고싶은데, 작은 윈도우라 모르겠음
+    // clientKey 변경 되었음... docs 키로 변경 (기존키 사용 불가능)
+    const clientKey = 'test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm';
+    // 위젯 기본 세팅
+    const paymentWidget = PaymentWidget(clientKey, PaymentWidget.ANONYMOUS)
+    const paymentMethodsWidget = paymentWidget.renderPaymentMethods(
+        '#payment-method',
+        {
+            value: 0,
+            currency: 'KRW',
+            country: 'KR'
+        },
+        { variantKey: 'DEFAULT' }
+    )
+    // 규약 세팅
+    const paymentAgreement = paymentWidget.renderAgreement(
+        '#agreement',
+        { variantKey: 'DEFAULT' }
+    )
+    // 여기에 어떤 버튼 누르면 활성화 시킬지 생성
+    const paymentRequestButton = document.getElementById('payment-request-button');
+    // 버튼 누르면
+    paymentRequestButton.addEventListener('click', () => {
+        try {
+            paymentWidget.requestPayment({
+                // 랜덤 orderId를 생성하고, orderName은 body에서 가져온걸로
+                orderId: crypto.randomUUID().replaceAll('-', ''),
+                orderName: roomName,
+            }).then(async data => {
+                const response = await fetch(`/api/toss/confirm-payment?roomId=${roomId}&reservationId=${reservationId}`, {
+                    method: 'post',
+                    headers: {
+                        'Content-Type' : 'application/json',
+                    },
+                    body: JSON.stringify({
+                        paymentKey: data.paymentKey,
+                        orderId: data.orderId,
+                        amount: data.amount
+                    }),
+                })
+                if (response.ok) {
+                    alert('결제가 완료되었습니다')
+                    // 추가로직 진행
+                    // 1. (아마 자동으로 A의 환불 진행하고), A의 예약 정보 바꾸는 로직 진행할 것
+                    // 처음에 B의 reservationId가 필요한가 했는데 필요한 것 같지는 않음
+                    try {
+                        await fetch(`/api/toss/payment/cancel-from-user`, {
+                            method: 'post',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                cancelReason: "양도로 인한 양도자 환불"
+                            }),
+                        })
+                        if (!response.ok) {
+                            window.opener.postMessage('paymentContinueFailure', 'http://localhost:8080');
+                            window.close();
+                        } else {
+                            // B의 결제도 되고, A의 환불도 진행되었다면, 딱히 건드릴게 없음 (B의 정보 바꾼다던가)
+                            // TODO reload부분 있던데 이거 필요합니까?
+                            window.opener.postMessage('paymentContinueSuccess', 'http://localhost:8080');
+                            window.close();
+                        }
+                    } catch (err) {
+                        // 에러 메세지 내놓으세요
+                        alert(err);
+                        // 에러났거나 추가 취소했다 등, 이후 로직은 나중에 살펴보겠음
+                    }
+                }
+            })
+        } catch (err) {
+            if (err.code === 'USER_CANCEL') {
+                alert('결제를 취소하였습니다')
+                // 결제 취소했을 때, 어떻게 할지 로직 진행
+                // 아마 갱신해야하나?
+                // TODO 이건 월요일날 진행합시다
+                // 결제를 취소한다면, B의 Reservation 삭제등은 하지 않음 ㅇㅇ..
+                // 대신 결제를 한번 했는데 30분 지나면 자동으로 취소되니, 관련 로직은 좀 나중에 생각합시다
+            }
+            // 아니면 그냥 에러메세지 표시하기
+            else alert(err)
+        }
+    });
+
+    // 먼저 reservationId를 바탕으로 관련된 정보를 불러오는 부분
+    // assignmentDto에서 정보들을 이것 저것 가져올 수 있음 (from, to, reservationId)
+    fetch(`/api/hotel/reservation/transfer/assignment?reservationId=${reservationId}`)
+        .then(async response => {
+            if (!response.ok) {
+                console.log('양도 데이터를 정상적으로 받아오지 못했습니다');
+                console.log('reservationId: ' + reservationId);
+                alert('데이터 받아오지 못함');
+            } else {
+                response.json().then(body => {
+                    console.log('데이터 잘 받아왔음');
+                    console.log('Price: ' + body.price);
+                    paymentMethodsWidget.updateAmount(body.price);
+                })
+            }
+        })
+        .catch(error => {
+            console.log('데이터에 파싱하는데 문제 생겼습니다', error);
+        })
+</script>
+</html>

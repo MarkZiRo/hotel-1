@@ -1,4 +1,19 @@
 # hotelreservation
+
+프로젝트 소개
+
+![image](https://github.com/yunheejunn/hotel/assets/169603251/69affc80-4246-4150-b3b8-ee16c1467e24)
+
+기술 스택
+
+![image](https://github.com/yunheejunn/hotel/assets/169603251/30a38e6e-34ee-4b0e-9b88-4f5bf585f7aa)
+
+ERD
+
+![image](https://github.com/yunheejunn/hotel/assets/169603251/fb7b976c-96d7-4e57-bfda-b6cbd22d0fd4)
+
+
+
 # 기능 요구서
 
 ## 1. 인증 및 권한 처리
